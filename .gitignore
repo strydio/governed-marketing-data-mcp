@@ -1,0 +1,25 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Runtime data
+var/
+*.db
+*.sqlite
+*.sqlite3
+
+# Build outputs
+bin/
+dist/
+coverage.out
+
+# Generated run artifacts
+artifacts/runs/*
+!artifacts/runs/.gitkeep
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
