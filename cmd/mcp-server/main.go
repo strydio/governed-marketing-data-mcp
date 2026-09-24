@@ -4,8 +4,14 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 
+	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
+	"github.com/strydio/governed-marketing-data-mcp/internal/authn"
+	"github.com/strydio/governed-marketing-data-mcp/internal/authz"
+	"github.com/strydio/governed-marketing-data-mcp/internal/config"
+	"github.com/strydio/governed-marketing-data-mcp/internal/mcpserver"
 	"github.com/strydio/governed-marketing-data-mcp/internal/repository"
 )
 
@@ -45,7 +51,36 @@ func main() {
 	}
 
 	if !dbReset && !dbSeed {
-		fmt.Println("governed marketing data MCP server")
+		cfg, err := config.Load()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "load config: %v\n", err)
+			os.Exit(1)
+		}
+		store, err := repository.OpenSQLite(cfg.SQLitePath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "open database: %v\n", err)
+			os.Exit(1)
+		}
+		defer store.Close()
+		authenticator, err := authn.NewAuthenticator(cfg.DemoBearerToken)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "create authenticator: %v\n", err)
+			os.Exit(1)
+		}
+		policy, err := authz.LoadPolicy(cfg.PolicyPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "load policy: %v\n", err)
+			os.Exit(1)
+		}
+		server := mcpserver.New(store, authenticator, policy)
+		mux := http.NewServeMux()
+		protectedHandler := mcpauth.RequireBearerToken(authenticator.VerifyToken, &mcpauth.RequireBearerTokenOptions{AllowMissingExpiration: true})(server.Handler())
+		mux.Handle("/mcp", protectedHandler)
+		fmt.Printf("governed marketing data MCP server listening on %s\n", cfg.MCPListenAddr)
+		if err := http.ListenAndServe(cfg.MCPListenAddr, mux); err != nil {
+			fmt.Fprintf(os.Stderr, "serve MCP: %v\n", err)
+			os.Exit(1)
+		}
 	}
 }
 

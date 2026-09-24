@@ -24,16 +24,22 @@ The server compares the token with the configured demo token:
 DEMO_BEARER_TOKEN=replace-me
 ```
 
-If the token is valid, it maps to a local principal reference:
+The implementation uses the official MCP Go SDK auth middleware:
 
-```text
-uk_marketing_demo
+```go
+auth.RequireBearerToken(...)
+```
+
+If the token is valid, the verifier stores the local principal reference in MCP SDK token info:
+
+```go
+TokenInfo{UserID: "uk_marketing_demo"}
 ```
 
 Conceptually:
 
 ```text
-Bearer token -> principal_ref
+HTTP Authorization header -> TokenInfo.UserID -> principal_ref
 ```
 
 For the initial demo there is one configured local identity:
@@ -84,7 +90,7 @@ Each MCP tool call is authorised independently. Tool discovery is not a security
 For every tool call, the server must perform this sequence:
 
 ```text
-1. Authenticate bearer token and resolve principal.
+1. Authenticate bearer token at the HTTP boundary and resolve principal.
 2. Validate tool input shape and common fields.
 3. Validate date range.
 4. Resolve whether the requested campaign and market are valid without leaking hidden resources.
@@ -164,7 +170,7 @@ Packages:
 
 ```text
 internal/config    - environment and file-path configuration
-internal/authn     - bearer-token authentication
+internal/authn     - bearer-token verification and principal extraction from request context
 internal/authz     - YAML policy loading and per-call authorisation
 internal/domain    - shared request validation helpers and domain types
 ```
