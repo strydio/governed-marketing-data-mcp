@@ -1,0 +1,12 @@
+principals:
+  uk_marketing_demo:
+    role: marketing_analyst
+    allowed_markets: [UK]
+    allowed_campaigns: [autumn-sale]
+    allowed_tools:
+      - get_campaign_performance
+      - get_conversion_funnel
+      - get_tracking_health
+      - get_data_freshness
+    max_date_range_days: 31
+    customer_level_data: false
