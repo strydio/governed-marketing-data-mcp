@@ -11,6 +11,9 @@ import (
 	"github.com/strydio/governed-marketing-data-mcp/internal/authz"
 	"github.com/strydio/governed-marketing-data-mcp/internal/domain"
 	"github.com/strydio/governed-marketing-data-mcp/internal/repository"
+	"github.com/strydio/governed-marketing-data-mcp/internal/telemetry"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 )
 
 const (
@@ -54,38 +57,70 @@ func (s *Server) registerTools() {
 }
 
 func (s *Server) campaignPerformance(ctx context.Context, req *mcp.CallToolRequest, input CommonToolInput) (*mcp.CallToolResult, domain.CampaignPerformance, error) {
+	ctx, span := startToolSpan(ctx, ToolCampaignPerformance, input)
+	defer span.End()
 	query, err := s.authorise(ctx, req, ToolCampaignPerformance, input)
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return nil, domain.CampaignPerformance{}, err
 	}
+	span.SetAttributes(attribute.String(telemetry.AttrAuthorisationDecision, "allow"))
 	out, err := s.store.GetCampaignPerformance(ctx, query)
+	if err != nil {
+		span.SetStatus(codes.Error, "repository error")
+	}
+	span.SetAttributes(attribute.Int(telemetry.AttrEvidenceCount, 1))
 	return nil, out, err
 }
 
 func (s *Server) conversionFunnel(ctx context.Context, req *mcp.CallToolRequest, input CommonToolInput) (*mcp.CallToolResult, domain.ConversionFunnel, error) {
+	ctx, span := startToolSpan(ctx, ToolConversionFunnel, input)
+	defer span.End()
 	query, err := s.authorise(ctx, req, ToolConversionFunnel, input)
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return nil, domain.ConversionFunnel{}, err
 	}
+	span.SetAttributes(attribute.String(telemetry.AttrAuthorisationDecision, "allow"))
 	out, err := s.store.GetConversionFunnel(ctx, query)
+	if err != nil {
+		span.SetStatus(codes.Error, "repository error")
+	}
+	span.SetAttributes(attribute.Int(telemetry.AttrEvidenceCount, 1))
 	return nil, out, err
 }
 
 func (s *Server) trackingHealth(ctx context.Context, req *mcp.CallToolRequest, input CommonToolInput) (*mcp.CallToolResult, domain.TrackingHealth, error) {
+	ctx, span := startToolSpan(ctx, ToolTrackingHealth, input)
+	defer span.End()
 	query, err := s.authorise(ctx, req, ToolTrackingHealth, input)
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return nil, domain.TrackingHealth{}, err
 	}
+	span.SetAttributes(attribute.String(telemetry.AttrAuthorisationDecision, "allow"))
 	out, err := s.store.GetTrackingHealth(ctx, query)
+	if err != nil {
+		span.SetStatus(codes.Error, "repository error")
+	}
+	span.SetAttributes(attribute.Int(telemetry.AttrEvidenceCount, 1))
 	return nil, out, err
 }
 
 func (s *Server) dataFreshness(ctx context.Context, req *mcp.CallToolRequest, input CommonToolInput) (*mcp.CallToolResult, domain.DataFreshness, error) {
+	ctx, span := startToolSpan(ctx, ToolDataFreshness, input)
+	defer span.End()
 	_, err := s.authorise(ctx, req, ToolDataFreshness, input)
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return nil, domain.DataFreshness{}, err
 	}
+	span.SetAttributes(attribute.String(telemetry.AttrAuthorisationDecision, "allow"))
 	out, err := s.store.GetDataFreshness(ctx)
+	if err != nil {
+		span.SetStatus(codes.Error, "repository error")
+	}
+	span.SetAttributes(attribute.Int(telemetry.AttrEvidenceCount, 1))
 	return nil, out, err
 }
 
@@ -95,7 +130,20 @@ func (s *Server) authorise(ctx context.Context, _ *mcp.CallToolRequest, tool str
 		return domain.CommonQuery{}, fmt.Errorf("authentication failed")
 	}
 	query := domain.CommonQuery{Campaign: input.Campaign, Market: input.Market, StartDate: input.StartDate, EndDate: input.EndDate}
+	ctx, span := telemetry.Tracer().Start(ctx, "authorisation.check")
+	_ = ctx
 	decision := s.policy.Authorise(authz.Request{Principal: principal, Tool: tool, Query: query})
+	span.SetAttributes(
+		attribute.String(telemetry.AttrGenAIToolName, tool),
+		attribute.String(telemetry.AttrCampaignMarket, query.Market),
+		attribute.String(telemetry.AttrCampaignIDHash, telemetry.CampaignIDHash(query.Campaign, query.Market)),
+		attribute.String(telemetry.AttrAuthorisationDecision, decisionName(decision.Allowed)),
+		attribute.String(telemetry.AttrAuthorisationReason, decision.Reason),
+	)
+	if !decision.Allowed {
+		span.SetStatus(codes.Error, decision.Reason)
+	}
+	span.End()
 	emitAuthorisationDecision(principal.Ref, tool, query, decision)
 	if !decision.Allowed {
 		return domain.CommonQuery{}, fmt.Errorf("authorisation failed")

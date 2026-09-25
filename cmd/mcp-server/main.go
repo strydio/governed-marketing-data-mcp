@@ -13,6 +13,7 @@ import (
 	"github.com/strydio/governed-marketing-data-mcp/internal/config"
 	"github.com/strydio/governed-marketing-data-mcp/internal/mcpserver"
 	"github.com/strydio/governed-marketing-data-mcp/internal/repository"
+	"github.com/strydio/governed-marketing-data-mcp/internal/telemetry"
 )
 
 func main() {
@@ -56,6 +57,13 @@ func main() {
 			fmt.Fprintf(os.Stderr, "load config: %v\n", err)
 			os.Exit(1)
 		}
+		shutdownTelemetry, err := telemetry.InitOTLP(context.Background(), os.Getenv("OTEL_SERVICE_NAME"), os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "init telemetry: %v\n", err)
+			os.Exit(1)
+		}
+		defer shutdownTelemetry(context.Background())
+
 		store, err := repository.OpenSQLite(cfg.SQLitePath)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "open database: %v\n", err)

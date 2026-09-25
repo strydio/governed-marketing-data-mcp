@@ -8,9 +8,15 @@ import (
 	"time"
 
 	"github.com/strydio/governed-marketing-data-mcp/internal/domain"
+	"github.com/strydio/governed-marketing-data-mcp/internal/telemetry"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 )
 
 func (s *SQLiteStore) GetCampaignPerformance(ctx context.Context, q domain.CommonQuery) (domain.CampaignPerformance, error) {
+	ctx, span := telemetry.Tracer().Start(ctx, "db.query campaign_performance")
+	defer span.End()
+	span.SetAttributes(attribute.String(telemetry.AttrDataSource, "ad_reporting"))
 	start, end, prevStart, prevEnd, err := periods(q.StartDate, q.EndDate)
 	if err != nil {
 		return domain.CampaignPerformance{}, err
@@ -28,6 +34,7 @@ func (s *SQLiteStore) GetCampaignPerformance(ctx context.Context, q domain.Commo
 		WHERE c.slug = ? AND c.market = ? AND cdm.date BETWEEN ? AND ?`, q.Campaign, q.Market, q.StartDate, q.EndDate).
 		Scan(&spendMinor, &impressions, &clicks, &conversions, &attributionModel, &attributionWindowDays)
 	if err != nil {
+		span.SetStatus(codes.Error, "query campaign performance")
 		return domain.CampaignPerformance{}, fmt.Errorf("query campaign performance: %w", err)
 	}
 
@@ -40,6 +47,7 @@ func (s *SQLiteStore) GetCampaignPerformance(ctx context.Context, q domain.Commo
 		return domain.CampaignPerformance{}, err
 	}
 
+	span.SetAttributes(attribute.Int(telemetry.AttrResultRecordCount, 1), attribute.String(telemetry.AttrDataCompleteThrough, freshness.CompleteThrough.Format(time.RFC3339)))
 	return domain.CampaignPerformance{
 		EvidenceID: fmt.Sprintf("ev-campaign-%s-%s-%s-%s", lowerMarket(q.Market), q.Campaign, compactDate(start), compactDate(end)),
 		Source:     "ad_reporting",
@@ -63,6 +71,9 @@ func (s *SQLiteStore) GetCampaignPerformance(ctx context.Context, q domain.Commo
 }
 
 func (s *SQLiteStore) GetConversionFunnel(ctx context.Context, q domain.CommonQuery) (domain.ConversionFunnel, error) {
+	ctx, span := telemetry.Tracer().Start(ctx, "db.query conversion_funnel")
+	defer span.End()
+	span.SetAttributes(attribute.String(telemetry.AttrDataSource, "analytics_warehouse"))
 	start, end, prevStart, prevEnd, err := periods(q.StartDate, q.EndDate)
 	if err != nil {
 		return domain.ConversionFunnel{}, err
@@ -77,6 +88,7 @@ func (s *SQLiteStore) GetConversionFunnel(ctx context.Context, q domain.CommonQu
 		WHERE c.slug = ? AND c.market = ? AND fdm.date BETWEEN ? AND ?`, q.Campaign, q.Market, q.StartDate, q.EndDate).
 		Scan(&sessions, &productViews, &checkoutStarts, &purchases)
 	if err != nil {
+		span.SetStatus(codes.Error, "query conversion funnel")
 		return domain.ConversionFunnel{}, fmt.Errorf("query conversion funnel: %w", err)
 	}
 
@@ -89,6 +101,7 @@ func (s *SQLiteStore) GetConversionFunnel(ctx context.Context, q domain.CommonQu
 		return domain.ConversionFunnel{}, err
 	}
 
+	span.SetAttributes(attribute.Int(telemetry.AttrResultRecordCount, 1), attribute.String(telemetry.AttrDataCompleteThrough, freshness.CompleteThrough.Format(time.RFC3339)))
 	return domain.ConversionFunnel{
 		EvidenceID: fmt.Sprintf("ev-funnel-%s-%s-%s-%s", lowerMarket(q.Market), q.Campaign, compactDate(start), compactDate(end)),
 		Source:     "analytics_warehouse",
@@ -107,6 +120,9 @@ func (s *SQLiteStore) GetConversionFunnel(ctx context.Context, q domain.CommonQu
 }
 
 func (s *SQLiteStore) GetTrackingHealth(ctx context.Context, q domain.CommonQuery) (domain.TrackingHealth, error) {
+	ctx, span := telemetry.Tracer().Start(ctx, "db.query tracking_health")
+	defer span.End()
+	span.SetAttributes(attribute.String(telemetry.AttrDataSource, "data_quality_monitor"))
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT ti.incident_id, ti.incident_type, ti.affected_segment, ti.first_observed_at,
 		       ti.estimated_under_reporting_pct, ti.public_summary
@@ -115,6 +131,7 @@ func (s *SQLiteStore) GetTrackingHealth(ctx context.Context, q domain.CommonQuer
 		WHERE c.slug = ? AND ti.market = ? AND ti.resolved_at IS NULL
 		ORDER BY ti.first_observed_at`, q.Campaign, q.Market)
 	if err != nil {
+		span.SetStatus(codes.Error, "query tracking health")
 		return domain.TrackingHealth{}, fmt.Errorf("query tracking health: %w", err)
 	}
 	defer rows.Close()
@@ -149,6 +166,7 @@ func (s *SQLiteStore) GetTrackingHealth(ctx context.Context, q domain.CommonQuer
 		status = "degraded"
 	}
 
+	span.SetAttributes(attribute.Int(telemetry.AttrResultRecordCount, len(findings)), attribute.String(telemetry.AttrDataCompleteThrough, freshness.CompleteThrough.Format(time.RFC3339)))
 	return domain.TrackingHealth{
 		EvidenceID:          fmt.Sprintf("ev-%s", firstIncidentID),
 		Source:              "data_quality_monitor",
@@ -161,6 +179,9 @@ func (s *SQLiteStore) GetTrackingHealth(ctx context.Context, q domain.CommonQuer
 }
 
 func (s *SQLiteStore) GetDataFreshness(ctx context.Context) (domain.DataFreshness, error) {
+	ctx, span := telemetry.Tracer().Start(ctx, "db.query data_freshness")
+	defer span.End()
+	span.SetAttributes(attribute.String(telemetry.AttrDataSource, "source_freshness"))
 	rows, err := s.db.QueryContext(ctx, `SELECT source_name, complete_through, status FROM source_freshness ORDER BY source_name`)
 	if err != nil {
 		return domain.DataFreshness{}, fmt.Errorf("query data freshness: %w", err)
@@ -186,6 +207,7 @@ func (s *SQLiteStore) GetDataFreshness(ctx context.Context) (domain.DataFreshnes
 	if err := rows.Err(); err != nil {
 		return domain.DataFreshness{}, fmt.Errorf("iterate data freshness: %w", err)
 	}
+	span.SetAttributes(attribute.Int(telemetry.AttrResultRecordCount, len(freshness.Sources)), attribute.String(telemetry.AttrDataCompleteThrough, latest.UTC().Format(time.RFC3339)))
 	freshness.EvidenceID = fmt.Sprintf("ev-freshness-%s", latest.UTC().Format("20060102T1504Z"))
 	return freshness, nil
 }
