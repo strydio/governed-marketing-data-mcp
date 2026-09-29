@@ -124,7 +124,7 @@ func TestHTTPToolsListShowsExactlyBusinessTools(t *testing.T) {
 		}
 	}
 	if seen["run_sql"] {
-		t.Fatal("must not expose generic SQL tool")
+		t.Fatal("MCP server advertised an unapproved tool: run_sql")
 	}
 }
 
