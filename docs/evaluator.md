@@ -17,7 +17,7 @@ RunRecord + GroundTruth -> EvaluationResult
 A run record is produced by the deterministic MCP client:
 
 ```bash
-DEMO_BEARER_TOKEN=replace-me go run ./cmd/client > artifacts/runs/client-run.json
+DEMO_BEARER_TOKEN=replace-me go run ./cmd/client --output artifacts/runs/client-run.json
 ```
 
 It describes what happened during a run:

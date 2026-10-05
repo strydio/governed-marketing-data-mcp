@@ -45,6 +45,12 @@ go run ./cmd/client \
   --end-date 2026-09-20
 ```
 
+Write the run record to a file:
+
+```bash
+go run ./cmd/client --output artifacts/runs/client-run.json
+```
+
 ## Flow
 
 The deterministic client performs this sequence:
@@ -78,7 +84,7 @@ It fails early if the client is pointed at the wrong MCP server or if the server
 
 ## Output
 
-The client writes a JSON run record to stdout.
+The client writes a JSON run record to stdout by default, or to the path provided with `--output`.
 
 Example shape:
 
