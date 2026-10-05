@@ -1,0 +1,13 @@
+{
+  "scenario_id": "autumn-sale-tracking-gap",
+  "expected_cause": "conversion_tracking_under_reporting",
+  "required_evidence_types": [
+    "campaign_performance",
+    "conversion_funnel",
+    "tracking_health"
+  ],
+  "acceptable_cause_aliases": [
+    "safari_tracking_failure",
+    "missing_conversion_events"
+  ]
+}
