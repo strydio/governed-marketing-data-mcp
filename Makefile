@@ -1,4 +1,4 @@
-.PHONY: help test vet build run-server run-client fmt tidy db-reset db-seed db-setup smoke
+.PHONY: help test vet build run-server run-client run-evaluator fmt tidy db-reset db-seed db-setup smoke
 
 help:
 	@echo "Available targets:"
@@ -7,6 +7,7 @@ help:
 	@echo "  make build      Build binaries into ./bin"
 	@echo "  make run-server Run the MCP server"
 	@echo "  make run-client Run the deterministic MCP client"
+	@echo "  make run-evaluator Run the evaluator; pass INPUT=path/to/run.json"
 	@echo "  make fmt        Format Go code"
 	@echo "  make tidy       Tidy Go module"
 	@echo "  make db-reset   Reset local demo database (not implemented yet)"
@@ -24,6 +25,7 @@ build:
 	mkdir -p bin
 	go build -o bin/mcp-server ./cmd/mcp-server
 	go build -o bin/client ./cmd/client
+	go build -o bin/evaluator ./cmd/evaluator
 	go build -o bin/smoke-test ./cmd/smoke-test
 
 run-server:
@@ -31,6 +33,10 @@ run-server:
 
 run-client:
 	go run ./cmd/client
+
+run-evaluator:
+	@if [ -z "$(INPUT)" ]; then echo "INPUT is required, e.g. make run-evaluator INPUT=artifacts/runs/client-run.json"; exit 1; fi
+	go run ./cmd/evaluator --input $(INPUT)
 
 fmt:
 	gofmt -w $$(find . -name '*.go')
