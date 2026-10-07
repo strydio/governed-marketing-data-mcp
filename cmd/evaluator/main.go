@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/strydio/governed-marketing-data-mcp/internal/client"
 	"github.com/strydio/governed-marketing-data-mcp/internal/evaluator"
+	"github.com/strydio/governed-marketing-data-mcp/internal/runs"
 )
 
 func main() {
@@ -27,7 +27,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "read input: %v\n", err)
 		os.Exit(1)
 	}
-	var record client.RunRecord
+	var record runs.Record
 	if err := json.Unmarshal(contents, &record); err != nil {
 		fmt.Fprintf(os.Stderr, "parse input: %v\n", err)
 		os.Exit(1)

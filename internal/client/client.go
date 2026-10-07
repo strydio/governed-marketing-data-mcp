@@ -8,6 +8,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	mcpserver "github.com/strydio/governed-marketing-data-mcp/internal/mcpserver"
+	"github.com/strydio/governed-marketing-data-mcp/internal/runs"
 	"golang.org/x/oauth2"
 )
 
@@ -18,26 +19,6 @@ type Config struct {
 	Market    string
 	StartDate string
 	EndDate   string
-}
-
-type RunRecord struct {
-	RunID       string    `json:"run_id"`
-	Mode        string    `json:"mode"`
-	Campaign    string    `json:"campaign"`
-	Market      string    `json:"market"`
-	StartDate   string    `json:"start_date"`
-	EndDate     string    `json:"end_date"`
-	ToolsCalled []string  `json:"tools_called"`
-	EvidenceIDs []string  `json:"evidence_ids"`
-	Diagnosis   Diagnosis `json:"diagnosis"`
-}
-
-type Diagnosis struct {
-	Cause       string   `json:"cause"`
-	Confidence  float64  `json:"confidence"`
-	Summary     string   `json:"summary"`
-	EvidenceIDs []string `json:"evidence_ids"`
-	Limitations []string `json:"limitations"`
 }
 
 type staticOAuthHandler struct{ token string }
@@ -53,36 +34,36 @@ func (h staticOAuthHandler) Authorize(context.Context, *http.Request, *http.Resp
 	return nil
 }
 
-func RunDeterministic(ctx context.Context, cfg Config) (RunRecord, error) {
+func RunDeterministic(ctx context.Context, cfg Config) (runs.Record, error) {
 	if cfg.Endpoint == "" {
-		return RunRecord{}, fmt.Errorf("MCP endpoint is required")
+		return runs.Record{}, fmt.Errorf("MCP endpoint is required")
 	}
 	if cfg.Token == "" {
-		return RunRecord{}, fmt.Errorf("bearer token is required")
+		return runs.Record{}, fmt.Errorf("bearer token is required")
 	}
 
 	mcpClient := mcp.NewClient(&mcp.Implementation{Name: "governed-marketing-data-mcp-client", Version: "v0.1.0"}, nil)
 	transport := &mcp.StreamableClientTransport{Endpoint: cfg.Endpoint, OAuthHandler: staticOAuthHandler{token: cfg.Token}, DisableStandaloneSSE: true}
 	session, err := mcpClient.Connect(ctx, transport, nil)
 	if err != nil {
-		return RunRecord{}, fmt.Errorf("connect MCP client: %w", err)
+		return runs.Record{}, fmt.Errorf("connect MCP client: %w", err)
 	}
 	defer session.Close()
 
 	requiredTools := []string{mcpserver.ToolCampaignPerformance, mcpserver.ToolConversionFunnel, mcpserver.ToolTrackingHealth, mcpserver.ToolDataFreshness}
 	if err := verifyRequiredToolsAvailable(ctx, session, requiredTools); err != nil {
-		return RunRecord{}, err
+		return runs.Record{}, err
 	}
 
-	record := RunRecord{RunID: "client-" + time.Now().UTC().Format("20060102T150405Z"), Mode: "deterministic_client", Campaign: cfg.Campaign, Market: cfg.Market, StartDate: cfg.StartDate, EndDate: cfg.EndDate}
+	record := runs.Record{RunID: "client-" + time.Now().UTC().Format("20060102T150405Z"), Mode: "deterministic_client", Campaign: cfg.Campaign, Market: cfg.Market, StartDate: cfg.StartDate, EndDate: cfg.EndDate}
 	args := map[string]any{"campaign": cfg.Campaign, "market": cfg.Market, "start_date": cfg.StartDate, "end_date": cfg.EndDate}
 	for _, tool := range requiredTools {
 		result, err := session.CallTool(ctx, &mcp.CallToolParams{Name: tool, Arguments: args})
 		if err != nil {
-			return RunRecord{}, fmt.Errorf("call %s: %w", tool, err)
+			return runs.Record{}, fmt.Errorf("call %s: %w", tool, err)
 		}
 		if result.IsError {
-			return RunRecord{}, fmt.Errorf("tool %s returned an error", tool)
+			return runs.Record{}, fmt.Errorf("tool %s returned an error", tool)
 		}
 		record.ToolsCalled = append(record.ToolsCalled, tool)
 		if evidenceID, ok := evidenceID(result.StructuredContent); ok {
@@ -90,7 +71,7 @@ func RunDeterministic(ctx context.Context, cfg Config) (RunRecord, error) {
 		}
 	}
 
-	record.Diagnosis = Diagnosis{
+	record.Diagnosis = runs.Diagnosis{
 		Cause:      "conversion_tracking_under_reporting",
 		Confidence: 0.91,
 		Summary:    "Actual purchases are stable; Safari conversion events are under-reported.",

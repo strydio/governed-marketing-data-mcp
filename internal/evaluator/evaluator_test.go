@@ -3,11 +3,11 @@ package evaluator
 import (
 	"testing"
 
-	"github.com/strydio/governed-marketing-data-mcp/internal/client"
+	"github.com/strydio/governed-marketing-data-mcp/internal/runs"
 )
 
-func correctRecord() client.RunRecord {
-	return client.RunRecord{
+func correctRecord() runs.Record {
+	return runs.Record{
 		RunID: "run-0001",
 		EvidenceIDs: []string{
 			"ev-campaign-uk-autumn-sale-20260914-20260920",
@@ -15,7 +15,7 @@ func correctRecord() client.RunRecord {
 			"ev-tracking-incident-017",
 			"ev-freshness-20260921T0415Z",
 		},
-		Diagnosis: client.Diagnosis{
+		Diagnosis: runs.Diagnosis{
 			Cause: "conversion_tracking_under_reporting",
 			EvidenceIDs: []string{
 				"ev-campaign-uk-autumn-sale-20260914-20260920",

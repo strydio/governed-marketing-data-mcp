@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/strydio/governed-marketing-data-mcp/internal/client"
+	"github.com/strydio/governed-marketing-data-mcp/internal/runs"
 )
 
 type GroundTruth struct {
@@ -42,7 +42,7 @@ func LoadGroundTruth(path string) (GroundTruth, error) {
 	return groundTruth, nil
 }
 
-func Evaluate(record client.RunRecord, groundTruth GroundTruth) Result {
+func Evaluate(record runs.Record, groundTruth GroundTruth) Result {
 	result := Result{
 		RunID:         record.RunID,
 		ReportedCause: record.Diagnosis.Cause,
