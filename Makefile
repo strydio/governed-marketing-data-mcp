@@ -1,4 +1,4 @@
-.PHONY: help test vet build run-server run-client run-evaluator fmt tidy db-reset db-seed db-setup smoke
+.PHONY: help test vet build run-server run-client run-agent run-evaluator fmt tidy db-reset db-seed db-setup smoke
 
 help:
 	@echo "Available targets:"
@@ -7,6 +7,7 @@ help:
 	@echo "  make build      Build binaries into ./bin"
 	@echo "  make run-server Run the MCP server"
 	@echo "  make run-client Run the deterministic MCP client"
+	@echo "  make run-agent  Run the LLM-backed agent runner; defaults to fake provider"
 	@echo "  make run-evaluator Run the evaluator; pass INPUT=path/to/run.json"
 	@echo "  make fmt        Format Go code"
 	@echo "  make tidy       Tidy Go module"
@@ -25,6 +26,7 @@ build:
 	mkdir -p bin
 	go build -o bin/mcp-server ./cmd/mcp-server
 	go build -o bin/client ./cmd/client
+	go build -o bin/agent-runner ./cmd/agent-runner
 	go build -o bin/evaluator ./cmd/evaluator
 	go build -o bin/smoke-test ./cmd/smoke-test
 
@@ -33,6 +35,9 @@ run-server:
 
 run-client:
 	go run ./cmd/client
+
+run-agent:
+	go run ./cmd/agent-runner
 
 run-evaluator:
 	@if [ -z "$(INPUT)" ]; then echo "INPUT is required, e.g. make run-evaluator INPUT=artifacts/runs/client-run.json"; exit 1; fi
