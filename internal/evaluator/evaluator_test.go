@@ -49,8 +49,23 @@ func TestEvaluateIncorrectCause(t *testing.T) {
 	if result.CauseCorrect {
 		t.Fatalf("expected cause to be incorrect: %#v", result)
 	}
+	if !result.ValidSchema {
+		t.Fatalf("expected known-but-incorrect cause to remain schema-valid: %#v", result)
+	}
 	if !result.EvidenceValid || !result.RequiredEvidenceComplete {
 		t.Fatalf("expected evidence checks to remain valid: %#v", result)
+	}
+}
+
+func TestEvaluateUnknownCauseLabelInvalidSchema(t *testing.T) {
+	record := correctRecord()
+	record.Diagnosis.Cause = "Significant under-reporting of conversion events for Safari browser sessions."
+	result := Evaluate(record, groundTruth())
+	if result.ValidSchema {
+		t.Fatalf("expected prose cause to be schema-invalid: %#v", result)
+	}
+	if result.CauseCorrect {
+		t.Fatalf("expected prose cause not to be correct: %#v", result)
 	}
 }
 

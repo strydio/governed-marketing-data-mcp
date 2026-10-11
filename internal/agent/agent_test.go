@@ -66,6 +66,42 @@ func TestRunnerCorrectFlow(t *testing.T) {
 	}
 }
 
+func TestRunnerAcceptsFencedFinalJSON(t *testing.T) {
+	final := []byte("```json\n{\"cause\":\"conversion_tracking_under_reporting\",\"confidence\":0.91,\"summary\":\"ok\",\"evidence_ids\":[\"ev-campaign-uk-autumn-sale-20260914-20260920\"],\"limitations\":[]}\n```")
+	runner := Runner{Provider: &model.FakeProvider{Responses: []model.Response{{FinalJSON: final}}}, Tools: fakeTools{tools: toolDefs()}}
+	record, err := runner.Run(context.Background(), Config{Question: "test"})
+	if err != nil {
+		t.Fatalf("expected fenced JSON to parse: %v", err)
+	}
+	if record.Diagnosis.Cause != "conversion_tracking_under_reporting" {
+		t.Fatalf("unexpected cause: %s", record.Diagnosis.Cause)
+	}
+}
+
+func TestRunnerAcceptsStringConfidence(t *testing.T) {
+	final := []byte(`{"cause":"conversion_tracking_under_reporting","confidence":"0.91","summary":"ok","evidence_ids":["ev-campaign-uk-autumn-sale-20260914-20260920"],"limitations":[]}`)
+	runner := Runner{Provider: &model.FakeProvider{Responses: []model.Response{{FinalJSON: final}}}, Tools: fakeTools{tools: toolDefs()}}
+	record, err := runner.Run(context.Background(), Config{Question: "test"})
+	if err != nil {
+		t.Fatalf("expected string confidence to parse: %v", err)
+	}
+	if record.Diagnosis.Confidence != 0.91 {
+		t.Fatalf("unexpected confidence: %f", record.Diagnosis.Confidence)
+	}
+}
+
+func TestRunnerAcceptsStringLimitation(t *testing.T) {
+	final := []byte(`{"cause":"conversion_tracking_under_reporting","confidence":0.91,"summary":"ok","evidence_ids":["ev-campaign-uk-autumn-sale-20260914-20260920"],"limitations":"The result covers the requested campaign only."}`)
+	runner := Runner{Provider: &model.FakeProvider{Responses: []model.Response{{FinalJSON: final}}}, Tools: fakeTools{tools: toolDefs()}}
+	record, err := runner.Run(context.Background(), Config{Question: "test"})
+	if err != nil {
+		t.Fatalf("expected string limitation to parse: %v", err)
+	}
+	if len(record.Diagnosis.Limitations) != 1 || record.Diagnosis.Limitations[0] != "The result covers the requested campaign only." {
+		t.Fatalf("unexpected limitations: %#v", record.Diagnosis.Limitations)
+	}
+}
+
 func TestRunnerRejectsUnknownTool(t *testing.T) {
 	runner := Runner{Provider: &model.FakeProvider{Responses: []model.Response{{ToolCalls: []model.ToolCall{{ID: "1", Name: "run_sql"}}}}}, Tools: fakeTools{tools: toolDefs()}}
 	_, err := runner.Run(context.Background(), Config{Question: "test"})

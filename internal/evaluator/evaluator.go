@@ -50,7 +50,7 @@ func Evaluate(record runs.Record, groundTruth GroundTruth) Result {
 		EvidenceValid: true,
 	}
 
-	result.ValidSchema = record.RunID != "" && record.Diagnosis.Cause != "" && len(record.Diagnosis.EvidenceIDs) > 0
+	result.ValidSchema = record.RunID != "" && record.Diagnosis.Cause != "" && runs.IsAllowedCause(record.Diagnosis.Cause) && len(record.Diagnosis.EvidenceIDs) > 0
 	result.CauseCorrect = causeMatches(record.Diagnosis.Cause, groundTruth)
 	result.EvidenceValid = citedEvidenceBelongsToRun(record.Diagnosis.EvidenceIDs, record.EvidenceIDs)
 

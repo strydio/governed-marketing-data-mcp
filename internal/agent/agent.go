@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/strydio/governed-marketing-data-mcp/internal/model"
@@ -83,6 +85,7 @@ func (r Runner) Run(ctx context.Context, cfg Config) (runs.Record, error) {
 		}
 
 		if len(response.ToolCalls) > 0 {
+			messages = append(messages, model.Message{Role: "assistant", ToolCalls: response.ToolCalls})
 			for _, call := range response.ToolCalls {
 				if !allowedTools[call.Name] {
 					return runs.Record{}, fmt.Errorf("model requested unknown tool: %s", call.Name)
@@ -106,8 +109,8 @@ func (r Runner) Run(ctx context.Context, cfg Config) (runs.Record, error) {
 		}
 
 		if len(response.FinalJSON) > 0 {
-			var diagnosis runs.Diagnosis
-			if err := json.Unmarshal(response.FinalJSON, &diagnosis); err != nil {
+			diagnosis, err := parseDiagnosis(response.FinalJSON)
+			if err != nil {
 				return runs.Record{}, fmt.Errorf("parse final diagnosis: %w", err)
 			}
 			if diagnosis.Cause == "" || len(diagnosis.EvidenceIDs) == 0 {
@@ -121,4 +124,79 @@ func (r Runner) Run(ctx context.Context, cfg Config) (runs.Record, error) {
 	}
 
 	return runs.Record{}, fmt.Errorf("maximum model turns exceeded")
+}
+
+func parseDiagnosis(raw []byte) (runs.Diagnosis, error) {
+	finalJSON := cleanFinalJSON(raw)
+	var flexible struct {
+		Cause       string          `json:"cause"`
+		Confidence  json.RawMessage `json:"confidence"`
+		Summary     string          `json:"summary"`
+		EvidenceIDs []string        `json:"evidence_ids"`
+		Limitations json.RawMessage `json:"limitations"`
+	}
+	if err := json.Unmarshal(finalJSON, &flexible); err != nil {
+		return runs.Diagnosis{}, err
+	}
+	confidence, err := parseConfidence(flexible.Confidence)
+	if err != nil {
+		return runs.Diagnosis{}, err
+	}
+	limitations, err := parseLimitations(flexible.Limitations)
+	if err != nil {
+		return runs.Diagnosis{}, err
+	}
+	return runs.Diagnosis{Cause: flexible.Cause, Confidence: confidence, Summary: flexible.Summary, EvidenceIDs: flexible.EvidenceIDs, Limitations: limitations}, nil
+}
+
+func parseLimitations(raw json.RawMessage) ([]string, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, nil
+	}
+	var values []string
+	if err := json.Unmarshal(raw, &values); err == nil {
+		return values, nil
+	}
+	var single string
+	if err := json.Unmarshal(raw, &single); err != nil {
+		return nil, fmt.Errorf("limitations must be a string array or string")
+	}
+	if single == "" {
+		return nil, nil
+	}
+	return []string{single}, nil
+}
+
+func parseConfidence(raw json.RawMessage) (float64, error) {
+	if len(raw) == 0 {
+		return 0, nil
+	}
+	var numeric float64
+	if err := json.Unmarshal(raw, &numeric); err == nil {
+		return numeric, nil
+	}
+	var text string
+	if err := json.Unmarshal(raw, &text); err != nil {
+		return 0, fmt.Errorf("confidence must be a number")
+	}
+	parsed, err := strconv.ParseFloat(text, 64)
+	if err != nil {
+		return 0, fmt.Errorf("confidence must be numeric")
+	}
+	return parsed, nil
+}
+
+func cleanFinalJSON(raw []byte) []byte {
+	text := strings.TrimSpace(string(raw))
+	if strings.HasPrefix(text, "```json") {
+		text = strings.TrimSpace(strings.TrimPrefix(text, "```json"))
+		text = strings.TrimSpace(strings.TrimSuffix(text, "```"))
+		return []byte(text)
+	}
+	if strings.HasPrefix(text, "```") {
+		text = strings.TrimSpace(strings.TrimPrefix(text, "```"))
+		text = strings.TrimSpace(strings.TrimSuffix(text, "```"))
+		return []byte(text)
+	}
+	return []byte(text)
 }

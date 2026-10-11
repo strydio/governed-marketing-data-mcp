@@ -29,13 +29,8 @@ func main() {
 	flag.StringVar(&market, "market", "UK", "market code")
 	flag.StringVar(&startDate, "start-date", "2026-09-14", "start date in YYYY-MM-DD format")
 	flag.StringVar(&endDate, "end-date", "2026-09-20", "end date in YYYY-MM-DD format")
-	flag.StringVar(&provider, "provider", "fake", "model provider: fake")
+	flag.StringVar(&provider, "provider", envOrDefault("MODEL_PROVIDER", "fake"), "model provider: fake or openai_compatible")
 	flag.Parse()
-
-	if provider != "fake" {
-		fmt.Fprintf(os.Stderr, "unsupported provider %q\n", provider)
-		os.Exit(1)
-	}
 
 	ctx := context.Background()
 	tools, closeTools, err := agent.NewMCPToolExecutor(ctx, endpoint, token)
@@ -45,7 +40,13 @@ func main() {
 	}
 	defer closeTools()
 
-	runner := agent.Runner{Provider: fakeScenarioProvider(campaign, market, startDate, endDate), Tools: tools}
+	modelProvider, err := buildModelProvider(provider, campaign, market, startDate, endDate)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "create model provider: %v\n", err)
+		os.Exit(1)
+	}
+
+	runner := agent.Runner{Provider: modelProvider, Tools: tools}
 	record, err := runner.Run(ctx, agent.Config{
 		Question:  "Why did conversions from the autumn campaign fall this week?",
 		Campaign:  campaign,
@@ -72,6 +73,21 @@ func main() {
 		return
 	}
 	fmt.Println(string(encoded))
+}
+
+func buildModelProvider(provider, campaign, market, startDate, endDate string) (model.Provider, error) {
+	switch provider {
+	case "fake":
+		return fakeScenarioProvider(campaign, market, startDate, endDate), nil
+	case "openai_compatible":
+		return model.NewOpenAICompatibleProvider(model.OpenAICompatibleConfig{
+			BaseURL: os.Getenv("MODEL_BASE_URL"),
+			APIKey:  os.Getenv("MODEL_API_KEY"),
+			Model:   os.Getenv("MODEL_NAME"),
+		}, nil)
+	default:
+		return nil, fmt.Errorf("unsupported provider %q", provider)
+	}
 }
 
 func fakeScenarioProvider(campaign, market, startDate, endDate string) model.Provider {
