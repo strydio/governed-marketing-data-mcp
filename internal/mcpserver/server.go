@@ -57,6 +57,7 @@ func (s *Server) registerTools() {
 }
 
 func (s *Server) campaignPerformance(ctx context.Context, req *mcp.CallToolRequest, input CommonToolInput) (*mcp.CallToolResult, domain.CampaignPerformance, error) {
+	ctx = extractRequestTraceContext(ctx, req)
 	ctx, span := startToolSpan(ctx, ToolCampaignPerformance, input)
 	defer span.End()
 	query, err := s.authorise(ctx, req, ToolCampaignPerformance, input)
@@ -74,6 +75,7 @@ func (s *Server) campaignPerformance(ctx context.Context, req *mcp.CallToolReque
 }
 
 func (s *Server) conversionFunnel(ctx context.Context, req *mcp.CallToolRequest, input CommonToolInput) (*mcp.CallToolResult, domain.ConversionFunnel, error) {
+	ctx = extractRequestTraceContext(ctx, req)
 	ctx, span := startToolSpan(ctx, ToolConversionFunnel, input)
 	defer span.End()
 	query, err := s.authorise(ctx, req, ToolConversionFunnel, input)
@@ -91,6 +93,7 @@ func (s *Server) conversionFunnel(ctx context.Context, req *mcp.CallToolRequest,
 }
 
 func (s *Server) trackingHealth(ctx context.Context, req *mcp.CallToolRequest, input CommonToolInput) (*mcp.CallToolResult, domain.TrackingHealth, error) {
+	ctx = extractRequestTraceContext(ctx, req)
 	ctx, span := startToolSpan(ctx, ToolTrackingHealth, input)
 	defer span.End()
 	query, err := s.authorise(ctx, req, ToolTrackingHealth, input)
@@ -108,6 +111,7 @@ func (s *Server) trackingHealth(ctx context.Context, req *mcp.CallToolRequest, i
 }
 
 func (s *Server) dataFreshness(ctx context.Context, req *mcp.CallToolRequest, input CommonToolInput) (*mcp.CallToolResult, domain.DataFreshness, error) {
+	ctx = extractRequestTraceContext(ctx, req)
 	ctx, span := startToolSpan(ctx, ToolDataFreshness, input)
 	defer span.End()
 	_, err := s.authorise(ctx, req, ToolDataFreshness, input)

@@ -7,6 +7,9 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/strydio/governed-marketing-data-mcp/internal/model"
+	"github.com/strydio/governed-marketing-data-mcp/internal/telemetry"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/oauth2"
 )
 
@@ -56,13 +59,20 @@ func (e *MCPToolExecutor) ListTools(ctx context.Context) ([]model.ToolDefinition
 }
 
 func (e *MCPToolExecutor) CallTool(ctx context.Context, name string, arguments map[string]any) (ToolResult, error) {
-	result, err := e.session.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: arguments})
+	ctx, span := telemetry.Tracer().Start(ctx, "execute_tool "+name)
+	defer span.End()
+	span.SetAttributes(attribute.String(telemetry.AttrGenAIToolName, name))
+	meta := telemetry.InjectTraceContext(ctx, nil)
+	result, err := e.session.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: arguments, Meta: meta})
 	if err != nil {
+		span.SetStatus(codes.Error, "MCP tool call failed")
 		return ToolResult{}, err
 	}
 	if result.IsError {
+		span.SetStatus(codes.Error, "MCP tool returned an error")
 		return ToolResult{}, fmt.Errorf("MCP tool returned an error")
 	}
+	span.SetAttributes(attribute.Int(telemetry.AttrEvidenceCount, 1))
 	evidenceID, _ := evidenceID(result.StructuredContent)
 	return ToolResult{EvidenceID: evidenceID, Content: result.StructuredContent}, nil
 }

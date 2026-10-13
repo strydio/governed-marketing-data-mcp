@@ -22,6 +22,7 @@ func Tracer() trace.Tracer {
 }
 
 func InitOTLP(ctx context.Context, serviceName, endpoint string) (ShutdownFunc, error) {
+	InitTextMapPropagator()
 	if serviceName == "" {
 		serviceName = "governed-marketing-data-mcp"
 	}

@@ -10,6 +10,8 @@ import (
 
 	"github.com/strydio/governed-marketing-data-mcp/internal/model"
 	"github.com/strydio/governed-marketing-data-mcp/internal/runs"
+	"github.com/strydio/governed-marketing-data-mcp/internal/telemetry"
+	"go.opentelemetry.io/otel/codes"
 )
 
 type ToolExecutor interface {
@@ -39,6 +41,8 @@ type Runner struct {
 }
 
 func (r Runner) Run(ctx context.Context, cfg Config) (runs.Record, error) {
+	ctx, rootSpan := telemetry.Tracer().Start(ctx, "invoke_agent campaign_investigation")
+	defer rootSpan.End()
 	if cfg.MaxTurns == 0 {
 		cfg.MaxTurns = 12
 	}
@@ -69,7 +73,8 @@ func (r Runner) Run(ctx context.Context, cfg Config) (runs.Record, error) {
 	toolCalls := 0
 
 	for turn := 0; turn < cfg.MaxTurns; turn++ {
-		response, err := r.Provider.Next(ctx, model.Request{
+		modelCtx, modelSpan := telemetry.Tracer().Start(ctx, "model.next")
+		response, err := r.Provider.Next(modelCtx, model.Request{
 			Question: cfg.Question,
 			Messages: messages,
 			Tools:    tools,
@@ -81,8 +86,12 @@ func (r Runner) Run(ctx context.Context, cfg Config) (runs.Record, error) {
 			},
 		})
 		if err != nil {
+			modelSpan.SetStatus(codes.Error, "model response failed")
+			modelSpan.End()
+			rootSpan.SetStatus(codes.Error, "agent failed")
 			return runs.Record{}, fmt.Errorf("model response: %w", err)
 		}
+		modelSpan.End()
 
 		if len(response.ToolCalls) > 0 {
 			messages = append(messages, model.Message{Role: "assistant", ToolCalls: response.ToolCalls})
