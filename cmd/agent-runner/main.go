@@ -10,6 +10,7 @@ import (
 	"github.com/strydio/governed-marketing-data-mcp/internal/agent"
 	"github.com/strydio/governed-marketing-data-mcp/internal/mcpserver"
 	"github.com/strydio/governed-marketing-data-mcp/internal/model"
+	"github.com/strydio/governed-marketing-data-mcp/internal/telemetry"
 )
 
 func main() {
@@ -33,6 +34,13 @@ func main() {
 	flag.Parse()
 
 	ctx := context.Background()
+	shutdownTelemetry, err := telemetry.InitOTLP(ctx, envOrDefault("OTEL_SERVICE_NAME", "governed-marketing-data-mcp-agent-runner"), os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "init telemetry: %v\n", err)
+		os.Exit(1)
+	}
+	defer shutdownTelemetry(context.Background())
+
 	tools, closeTools, err := agent.NewMCPToolExecutor(ctx, endpoint, token)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "create MCP tool executor: %v\n", err)

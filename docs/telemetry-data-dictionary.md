@@ -16,6 +16,19 @@ TELEMETRY_CAPTURE_CONTENT=false
 
 Safe mode must not record raw prompts, bearer tokens, raw SQL, full tool arguments, or full tool results.
 
+## Trace propagation
+
+The agent runner propagates W3C trace context to the MCP server through MCP request `_meta` fields:
+
+```text
+traceparent
+tracestate
+```
+
+The MCP server extracts these fields before creating server-side tool spans. This allows agent spans, MCP server spans, authorisation spans, and DB spans to appear in one trace.
+
+Only trace context is propagated this way. Do not propagate bearer tokens, prompts, raw SQL, full tool arguments, full tool results, or model responses through MCP metadata for telemetry purposes.
+
 ## Trace spans planned for the backend
 
 Backend MCP requests should produce spans similar to:
