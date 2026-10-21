@@ -120,4 +120,10 @@ See [docs](./docs/) for more detailed and granular documentation on each part of
 
 ## Coding Agent used to Build this PoC
 
-- [PiAgent](https://pi.dev/) with ChatGPT Plus (Codex) subscription.
+This project was developed with assistance from [PiAgent](https://pi.dev/) with ChatGPT Plus (Codex) subscription.
+
+See [PiAgent Development Statistics](PI_AGENT_STATS.md) for a snapshot of token usage, caching efficiency, and estimated model consumption during development.
+
+**Token usage** as at this commit ID (`01b90f4`):
+- Input tokens: 3.7M
+- Output tokens: 150K
